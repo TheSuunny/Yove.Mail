@@ -43,7 +43,7 @@ namespace Yove.Mail
 
         public async Task Delete()
         {
-            await Client.Get("https://temp-mail.org/en/option/delete/");
+            await Client.Get("https://temp-mail.org/en/option/delete/").ConfigureAwait(false);
 
             Token.Cancel();
             Messages.Clear();
@@ -73,7 +73,7 @@ namespace Yove.Mail
                 Token.Cancel();
 
                 while (Token != null)
-                    await Task.Delay(100);
+                    await Task.Delay(100).ConfigureAwait(false);
             }
 
             Token = new CancellationTokenSource();
