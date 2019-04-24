@@ -6,9 +6,12 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Yove.Http;
+using Yove.Http.Proxy;
 
 namespace Yove.Mail
 {
+    //TODO: Proxy Client
+
     public delegate void EmailAction(Message Message);
 
     public class Email : Settings
@@ -16,10 +19,13 @@ namespace Yove.Mail
         public event EmailAction NewMessage;
 
         public List<string> Domains = new List<string>();
-
         public List<Message> Messages => SourceMessages;
 
-        private CancellationTokenSource Cancel = new CancellationTokenSource();
+        public ProxyClient Proxy { get; set; }
+
+        public bool IsDisposed { get; private set; }
+
+        private CancellationTokenSource Token { get; set; }
 
         public Email()
         {
@@ -28,16 +34,26 @@ namespace Yove.Mail
 
         public void Dispose()
         {
-            Cancel.Cancel();
+            Token.Cancel();
             Client.Dispose();
 
             Domains.Clear();
+            Messages.Clear();
+
+            IsDisposed = true;
+        }
+
+        public async Task Delete()
+        {
+            await Client.Get("https://temp-mail.org/en/option/delete/");
+
+            Token.Cancel();
             Messages.Clear();
         }
 
         public Message GetMessage(int Id)
         {
-            if (Cancel.IsCancellationRequested)
+            if (IsDisposed)
                 throw new ObjectDisposedException("This object disposed");
 
             if (Messages.Count == 0 || Id > Messages.Count)
@@ -48,14 +64,24 @@ namespace Yove.Mail
 
         public async Task<string> Set(string Login, string Domain)
         {
-            if (Cancel.IsCancellationRequested)
+            if (IsDisposed)
                 throw new ObjectDisposedException("This object disposed");
+
+            Token = new CancellationTokenSource();
+
+            if (Proxy != null)
+                Client.Proxy = Proxy;
 
             HttpResponse Change = await Client.Post("https://temp-mail.org/en/option/change/", $"csrf={CSRFToken}&mail={Login}&domain={Domain}", "application/x-www-form-urlencoded").ConfigureAwait(false);
 
-            new Task(async() => await Refresh()).Start();
+            if (Change.StatusCode == HttpStatusCode.OK)
+            {
+                new Task(async() => await Refresh()).Start();
 
-            return HttpUtils.Parser("class=\"emailbox-input opentip\" value=\"", Change.Body, "\"");
+                return HttpUtils.Parser("class=\"emailbox-input opentip\" value=\"", Change.Body, "\"");
+            }
+
+            return null;
         }
 
         private async Task<List<string>> GetDomains()
@@ -80,7 +106,7 @@ namespace Yove.Mail
 
         private async Task Refresh()
         {
-            while (!Cancel.IsCancellationRequested)
+            while (!Token.IsCancellationRequested)
             {
                 try
                 {

@@ -18,11 +18,17 @@ ___
 ### Setup
 
 ```csharp
-Email Mail = new Email();
+Email Mail = new Email
+{
+    Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Http),
+    Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Socks4),
+    Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Socks5),
+    Proxy = new ProxyClient("195.208.172.70:8080", ProxyType.Http)
+}
 
-Mail.Domains // Return List domains
+List<string> Domains = Mail.Domains; // Return List available domains
 
-string Address = await Mail.Set("yove", "@dreamcatcher.email"); // Set mail address
+string Address = await Mail.Set("yove", "@dreamcatcher.email"); // Set email address
 
 Mail.NewMessage += async (e) =>
 {
@@ -30,12 +36,14 @@ Mail.NewMessage += async (e) =>
 
     await e.Delete(); // Delete this message
 
-    Dispose(); // Be sure to exit the client when you finish working with it
+    Mail.Dispose(); // Be sure to exit the client when you finish working with it
 };
 
-Mail.Messages // Return List messages from this Email
+List<Message> Messages = Mail.Messages; // Return List messages from this Email
 
 Message Message = Mail.GetMessage(0); // Return message from Id 0
+
+await Mail.Delete(); // Delete this Email
 ```
 
 ___
