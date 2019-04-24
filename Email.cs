@@ -10,8 +10,6 @@ using Yove.Http.Proxy;
 
 namespace Yove.Mail
 {
-    //TODO: Proxy Client
-
     public delegate void EmailAction(Message Message);
 
     public class Email : Settings
@@ -67,18 +65,29 @@ namespace Yove.Mail
             if (IsDisposed)
                 throw new ObjectDisposedException("This object disposed");
 
-            Token = new CancellationTokenSource();
-
             if (Proxy != null)
                 Client.Proxy = Proxy;
+
+            if (Token != null)
+            {
+                Token.Cancel();
+
+                while (Token != null)
+                    await Task.Delay(100);
+            }
+
+            Token = new CancellationTokenSource();
 
             HttpResponse Change = await Client.Post("https://temp-mail.org/en/option/change/", $"csrf={CSRFToken}&mail={Login}&domain={Domain}", "application/x-www-form-urlencoded").ConfigureAwait(false);
 
             if (Change.StatusCode == HttpStatusCode.OK)
             {
-                new Task(async() => await Refresh()).Start();
+                string Email = HttpUtils.Parser("class=\"emailbox-input opentip\" value=\"", Change.Body, "\"");
 
-                return HttpUtils.Parser("class=\"emailbox-input opentip\" value=\"", Change.Body, "\"");
+                if (Email != null)
+                    new Task(async() => await Refresh()).Start();
+
+                return Email;
             }
 
             return null;
@@ -112,7 +121,12 @@ namespace Yove.Mail
                 {
                     string Source = await Client.GetString("https://temp-mail.org/en/option/refresh/").ConfigureAwait(false);
 
-                    foreach (string SourceLink in HttpUtils.Parser("<div class=\"inbox-dataList\">", Source, "<div class=\"mid-intro-text\">").Split(new string[] { "<a href=\"" }, StringSplitOptions.None))
+                    string Inbox = HttpUtils.Parser("<div class=\"inbox-dataList\">", Source, "<div class=\"mid-intro-text\">");
+
+                    if (Inbox == null || !Inbox.Contains("<a href=\""))
+                        continue;
+
+                    foreach (string SourceLink in Inbox.Split(new string[] { "<a href=\"" }, StringSplitOptions.None))
                     {
                         try
                         {
@@ -170,6 +184,8 @@ namespace Yove.Mail
                     await Task.Delay(5000);
                 }
             }
+
+            Token = null;
         }
 
         private string DecodeMime(string Source)
