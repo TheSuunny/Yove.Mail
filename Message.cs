@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
+using MimeKit;
 
 namespace Yove.Mail
 {
@@ -7,11 +9,14 @@ namespace Yove.Mail
     {
         public string Id { get; set; }
         public string From { get; set; }
+        public string To { get; set; }
         public string Subject { get; set; }
-        public string Encoding { get; set; }
-        public string Body { get; set; }
+        public string TextBody { get; set; }
+        public string HtmlBody { get; set; }
 
-        public DateTime Date { get; set; }
+        public DateTimeOffset Date { get; set; }
+
+        public IEnumerable<MimeEntity> Attachments { get; set; }
 
         public async Task Delete()
         {

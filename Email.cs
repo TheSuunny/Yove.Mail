@@ -1,12 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Yove.Http;
 using Yove.Http.Proxy;
+using MimeKit;
 
 namespace Yove.Mail
 {
@@ -85,7 +84,7 @@ namespace Yove.Mail
                 string Email = HttpUtils.Parser("class=\"emailbox-input opentip\" value=\"", Change.Body, "\"");
 
                 if (Email != null)
-                    new Task(async() => await Refresh()).Start();
+                    new Task(async () => await Refresh()).Start();
 
                 return Email;
             }
@@ -137,30 +136,16 @@ namespace Yove.Mail
 
                             if (Messages.FirstOrDefault(x => x.Id == Id) == null && !string.IsNullOrEmpty(Id))
                             {
-                                string SourceMessage = await Client.GetString($"https://temp-mail.org/en/source/{Id}/").ConfigureAwait(false);
-
-                                string From = HttpUtils.Parser("From:  <", SourceMessage, ">");
-                                string Subject = HttpUtils.Parser("Subject: ", SourceMessage, "\r\n");
-                                string ContentEncoding = HttpUtils.Parser("Content-Transfer-Encoding: ", SourceMessage, "\r\n");
-                                string Body = HttpUtils.Parser($"{ContentEncoding}\r\n\r\n", SourceMessage, "\r\n");
-                                string Date = HttpUtils.Parser($"Date: ", SourceMessage, " (");
-
-                                if (ContentEncoding == "base64")
-                                    Body = Encoding.UTF8.GetString(Convert.FromBase64String(Body));
-                                else if (ContentEncoding == "quoted-printable")
-                                    Body = DecodeQuotedPrintable(Body, Encoding.UTF8);
-
-                                if (Subject.Contains("=?UTF-8"))
-                                    Subject = DecodeMime(Subject);
+                                MimeMessage Mime = await MimeMessage.LoadAsync(await Client.GetStream($"https://temp-mail.org/en/source/{Id}/")).ConfigureAwait(false);
 
                                 Message Message = new Message
                                 {
                                     Id = Id,
-                                    From = From,
-                                    Subject = Subject,
-                                    Encoding = ContentEncoding,
-                                    Body = Body,
-                                    Date = TimeZoneInfo.ConvertTime(DateTime.Parse(Date), TimeZoneInfo.Local)
+                                    From = Mime.From.First().Name,
+                                    Subject = Mime.Subject,
+                                    TextBody = Mime.TextBody,
+                                    HtmlBody = Mime.HtmlBody,
+                                    Date = TimeZoneInfo.ConvertTime(Mime.Date, TimeZoneInfo.Local)
                                 };
 
                                 if (NewMessage != null && Message.Date.AddMinutes(2) > DateTime.Now)
@@ -186,38 +171,6 @@ namespace Yove.Mail
             }
 
             Token = null;
-        }
-
-        private string DecodeMime(string Source)
-        {
-            MatchCollection Match = Regex.Matches(Source, @"(?:=\?)([^\?]+)(?:\?B\?)([^\?]*)(?:\?=)");
-
-            string Charset = Match[0].Groups[1].Value;
-            string Data = Match[0].Groups[2].Value;
-
-            return Encoding.GetEncoding(Charset).GetString(Convert.FromBase64String(Data));
-        }
-
-        private string DecodeQuotedPrintable(string Source, Encoding Encoding)
-        {
-            Source = Source.Replace("=\r\n", "");
-
-            List<byte> Result = new List<byte>();
-
-            for (int i = 0; i < Source.Length; i++)
-            {
-                if (Source[i] == '=')
-                {
-                    Result.Add(Convert.ToByte(Source.Substring(i + 1, 2), 16));
-                    i += 2;
-                }
-                else
-                {
-                    Result.Add((byte)Source[i]);
-                }
-            }
-
-            return Encoding.GetString(Result.ToArray());
         }
     }
 }
