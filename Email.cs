@@ -11,7 +11,7 @@ namespace Yove.Mail
 {
     public delegate void EmailAction(Message Message);
 
-    public class Email : Settings
+    public class Email : Settings, IDisposable
     {
         public event EmailAction NewMessage;
 
