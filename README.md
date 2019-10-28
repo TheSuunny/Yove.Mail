@@ -38,9 +38,9 @@ Mail.NewMessage += async (e) =>
 {
     Console.WriteLine($"{e.TextBody} / {e.HtmlBody} / {e.From} / {e.Subject} / {e.Date}");
 
-    await e.Delete(); // Delete this message
+    bool IsDelete =  await e.Delete(); // Delete this message
 
-    bool IsDelete = Mail.Dispose(); // Be sure to exit the client when you finish working with it
+    Mail.Dispose(); // Be sure to exit the client when you finish working with it
 };
 
 List<Message> Messages = Mail.Messages; // Return List messages from this Email
