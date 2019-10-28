@@ -49,7 +49,7 @@ namespace Yove.Mail
             if (string.IsNullOrEmpty(Login) || !Domain.Contains("@"))
                 throw new ArgumentException("Email invalid.");
 
-            Address = $"{Login}{Domain}";
+            Address = $"{Login.ToLower()}{Domain}";
 
             Hash = CreateMD5(Address);
 
@@ -60,7 +60,7 @@ namespace Yove.Mail
 
         public string SetRandom()
         {
-            Address = $"{HttpUtils.RandomString(10)}{Domains[new Random().Next(0, Domains.Count - 1)]}";
+            Address = $"{HttpUtils.RandomString(10).ToLower()}{Domains[new Random().Next(0, Domains.Count - 1)]}";
 
             Hash = CreateMD5(Address);
 

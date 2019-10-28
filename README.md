@@ -31,7 +31,7 @@ Email Mail = new Email
 
 string Domain = Mail.Domains[new Random().Next(0, Mail.Domains.Count - 1)];
 
-string Address = await Mail.Set("Yove", Domain); // Set email address
+string Address = await Mail.Set("yove", Domain); // Set email address
 string Address = await Mail.SetRandom(); // Set random email address
 
 Mail.NewMessage += async (e) =>
