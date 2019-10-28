@@ -1,11 +1,12 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
+using System.Collections.Generic;
 using System.Threading.Tasks;
-using Yove.Http;
+using Newtonsoft.Json.Linq;
 using Yove.Http.Proxy;
-using MimeKit;
+using System.Security.Cryptography;
+using System.Text;
+using Yove.Http;
 
 namespace Yove.Mail
 {
@@ -16,22 +17,17 @@ namespace Yove.Mail
         public event EmailAction NewMessage;
 
         public List<string> Domains = new List<string>();
+
         public List<Message> Messages => SourceMessages;
+
+        public string Address { get; set; }
 
         public ProxyClient Proxy { get; set; }
 
         public bool IsDisposed { get; private set; }
 
-        private CancellationTokenSource Token { get; set; }
-
-        public Email()
-        {
-            GetDomains().ConfigureAwait(false).GetAwaiter().GetResult();
-        }
-
         public void Dispose()
         {
-            Token.Cancel();
             Client.Dispose();
 
             Domains.Clear();
@@ -40,123 +36,75 @@ namespace Yove.Mail
             IsDisposed = true;
         }
 
-        public async Task Delete()
+        public Email()
         {
-            await Client.Get("https://temp-mail.org/en/option/delete/").ConfigureAwait(false);
+            string Response = Client.GetString("https://api4.temp-mail.org/request/domains/format/json").GetAwaiter().GetResult();
 
-            Token.Cancel();
-            Messages.Clear();
+            foreach (var Domain in JArray.Parse(Response))
+                Domains.Add((string)Domain);
         }
 
-        public Message GetMessage(int Id)
+        public string Set(string Login, string Domain)
         {
-            if (IsDisposed)
-                throw new ObjectDisposedException("This object disposed");
+            if (string.IsNullOrEmpty(Login) || !Domain.Contains("@"))
+                throw new ArgumentException("Email invalid.");
 
-            if (Messages.Count == 0 || Id > Messages.Count)
-                return null;
+            Address = $"{Login}{Domain}";
 
-            return Messages[Id];
+            Hash = CreateMD5(Address);
+
+            new Task(async () => await WaitMessage()).Start();
+
+            return Address;
         }
 
-        public async Task<string> Set(string Login, string Domain)
+        public string SetRandom()
         {
-            if (IsDisposed)
-                throw new ObjectDisposedException("This object disposed");
+            Address = $"{HttpUtils.RandomString(10)}{Domains[new Random().Next(0, Domains.Count - 1)]}";
 
-            if (Proxy != null)
-                Client.Proxy = Proxy;
+            Hash = CreateMD5(Address);
 
-            if (Token != null)
-            {
-                Token.Cancel();
+            new Task(async () => await WaitMessage()).Start();
 
-                while (Token != null)
-                    await Task.Delay(100).ConfigureAwait(false);
-            }
-
-            Token = new CancellationTokenSource();
-
-            HttpResponse Change = await Client.Post("https://temp-mail.org/en/option/change/", $"csrf={CSRFToken}&mail={Login}&domain={Domain}", "application/x-www-form-urlencoded").ConfigureAwait(false);
-
-            if (Change.StatusCode == HttpStatusCode.OK)
-            {
-                string Email = HttpUtils.Parser("class=\"emailbox-input opentip\" value=\"", Change.Body, "\"");
-
-                if (Email != null)
-                    new Task(async () => await Refresh()).Start();
-
-                return Email;
-            }
-
-            return null;
+            return Address;
         }
 
-        private async Task<List<string>> GetDomains()
+        private async Task WaitMessage()
         {
-            string Source = await Client.GetString("https://temp-mail.org/en/option/change/").ConfigureAwait(false);
-
-            CSRFToken = HttpUtils.Parser("name=\"csrf\" value=\"", Source, "\"");
-
-            foreach (string SourceDomain in HttpUtils.Parser("<select id=\"domain\" name=\"domain\"", Source, "</select>").Split(new string[] { "<option value=\"@" }, StringSplitOptions.None))
-            {
-                if (!SourceDomain.Contains("@"))
-                    continue;
-
-                string Domain = HttpUtils.Parser("\">", SourceDomain, "</option>")?.Trim();
-
-                if (Domain != null)
-                    Domains.Add(Domain);
-            }
-
-            return Domains;
-        }
-
-        private async Task Refresh()
-        {
-            while (!Token.IsCancellationRequested)
+            while (!IsDisposed)
             {
                 try
                 {
-                    string Source = await Client.GetString("https://temp-mail.org/en/option/refresh/").ConfigureAwait(false);
+                    string GetMessages = await Client.GetString($"https://api4.temp-mail.org/request/mail/id/{Hash}/format/json");
 
-                    string Inbox = HttpUtils.Parser("<div class=\"inbox-dataList\">", Source, "<div class=\"mid-intro-text\">");
-
-                    if (Inbox == null || !Inbox.Contains("<a href=\""))
-                        continue;
-
-                    foreach (string SourceLink in Inbox.Split(new string[] { "<a href=\"" }, StringSplitOptions.None))
+                    if (!GetMessages.Contains("There are no emails yet"))
                     {
-                        try
+                        foreach (var Message in JArray.Parse(GetMessages))
                         {
-                            if (!SourceLink.Contains("https://"))
+                            if (Messages.FirstOrDefault(x => x.Id == (string)Message["mail_id"]) != null)
                                 continue;
 
-                            string Id = HttpUtils.Parser("https://temp-mail.org/en/view/", SourceLink, "\" title");
+                            DateTime Date = new DateTime(1970, 1, 1, 0, 0, 0, 0);
 
-                            if (Messages.FirstOrDefault(x => x.Id == Id) == null && !string.IsNullOrEmpty(Id))
+                            Message Msg = new Message
                             {
-                                MimeMessage Mime = await MimeMessage.LoadAsync(await Client.GetStream($"https://temp-mail.org/en/source/{Id}/")).ConfigureAwait(false);
+                                Id = (string)Message["mail_id"],
+                                From = (string)Message["mail_from"],
+                                Subject = (string)Message["mail_subject"],
+                                TextBody = (string)Message["mail_text"],
+                                HtmlBody = (string)Message["mail_html"],
+                                Date = Date.AddSeconds((double)Message["mail_timestamp"])
+                            };
 
-                                Message Message = new Message
-                                {
-                                    Id = Id,
-                                    From = Mime.From.First().Name,
-                                    Subject = Mime.Subject,
-                                    TextBody = Mime.TextBody,
-                                    HtmlBody = Mime.HtmlBody,
-                                    Date = TimeZoneInfo.ConvertTime(Mime.Date, TimeZoneInfo.Local)
-                                };
-
-                                if (NewMessage != null && Message.Date.AddMinutes(2) > DateTime.Now)
-                                    NewMessage(Message);
-
-                                Messages.Add(Message);
+                            foreach (var File in Message["mail_attachments"])
+                            {
+                                Msg.Attachments.Add(((string)Message["filename"], (long)Message["size"], (string)Message["mimetype"], $"https://api4.temp-mail.org/request/one_attachment/id/{Hash}/{(int)File["_id"]}/format/json"));
                             }
-                        }
-                        catch
-                        {
-                            // Ignore
+
+                            if (NewMessage != null && Msg.Date.AddMinutes(2) > DateTime.UtcNow)
+                                NewMessage(Msg);
+
+                            Messages.Add(Msg);
                         }
                     }
                 }
@@ -169,8 +117,41 @@ namespace Yove.Mail
                     await Task.Delay(5000);
                 }
             }
+        }
 
-            Token = null;
+        public Message GetMessage(string Id)
+        {
+            if (IsDisposed)
+                throw new ObjectDisposedException("This object disposed.");
+
+            Message Message = Messages.FirstOrDefault(x => x.Id == Id);
+
+            if (Messages.Count == 0 || Message == null)
+                return null;
+
+            return Message;
+        }
+
+        public async Task Delete()
+        {
+            await Client.Get($"https://api4.temp-mail.org/request/delete_address/id/{Hash}/format/json");
+
+            Dispose();
+        }
+
+        public static string CreateMD5(string Input)
+        {
+            using (MD5 MD5 = MD5.Create())
+            {
+                byte[] HashBytes = MD5.ComputeHash(Encoding.ASCII.GetBytes(Input));
+
+                StringBuilder Builder = new StringBuilder();
+
+                for (int i = 0; i < HashBytes.Length; i++)
+                    Builder.Append(HashBytes[i].ToString("X2"));
+
+                return Builder.ToString().ToLower();
+            }
         }
     }
 }

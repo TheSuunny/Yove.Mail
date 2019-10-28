@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using MimeKit;
+using Newtonsoft.Json.Linq;
 
 namespace Yove.Mail
 {
@@ -9,20 +9,25 @@ namespace Yove.Mail
     {
         public string Id { get; set; }
         public string From { get; set; }
-        public string To { get; set; }
         public string Subject { get; set; }
         public string TextBody { get; set; }
         public string HtmlBody { get; set; }
 
-        public DateTimeOffset Date { get; set; }
+        public DateTime Date { get; set; }
 
-        public IEnumerable<MimeEntity> Attachments { get; set; }
+        public List<(string Filename, long Size, string MimeType, string URL)> Attachments = new List<(string Filename, long Size, string MimeType, string URL)>();
 
-        public async Task Delete()
+        public async Task<bool> Delete()
         {
-            await Client.Get($"https://temp-mail.org/en/delete/{Id}/").ConfigureAwait(false);
+            string Delete = await Client.GetString($"https://api4.temp-mail.org/request/delete/id/{Id}/format/json");
 
-            SourceMessages.Remove(this);
+            if ((string)JObject.Parse(Delete)["result"] == "success")
+            {
+                SourceMessages.Remove(this);
+                return true;
+            }
+
+            return false;
         }
     }
 }

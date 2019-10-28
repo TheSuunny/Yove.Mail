@@ -8,11 +8,13 @@ namespace Yove.Mail
         internal HttpClient Client = new HttpClient
         {
             EnableProtocolError = false,
-            UserAgent = HttpUtils.GenerateUserAgent()
+            UserAgent = HttpUtils.GenerateUserAgent(),
+            EnableCookies = true,
+            Cookies = new System.Collections.Specialized.NameValueCollection()
         };
 
-        internal string CSRFToken { get; set; }
-
         internal List<Message> SourceMessages = new List<Message>();
+
+        internal string Hash { get; set; }
     }
 }

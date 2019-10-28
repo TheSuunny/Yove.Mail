@@ -15,7 +15,8 @@ Install-Package Yove.Mail
 ```
 dotnet add package Yove.Mail
 ```
-___
+
+---
 
 ### Setup
 
@@ -28,27 +29,28 @@ Email Mail = new Email
     Proxy = new ProxyClient("195.208.172.70:8080", ProxyType.Http)
 }
 
-List<string> Domains = Mail.Domains; // Return List available domains
+string Domain = Mail.Domains[new Random().Next(0, Mail.Domains.Count - 1)];
 
-string Address = await Mail.Set("yove", "@dreamcatcher.email"); // Set email address
+string Address = await Mail.Set("Yove", Domain); // Set email address
+string Address = await Mail.SetRandom(); // Set random email address
 
 Mail.NewMessage += async (e) =>
 {
-    Console.WriteLine($"{e.Body} / {e.From} / {e.Subject} / {e.Date}");
+    Console.WriteLine($"{e.TextBody} / {e.HtmlBody} / {e.From} / {e.Subject} / {e.Date}");
 
     await e.Delete(); // Delete this message
 
-    Mail.Dispose(); // Be sure to exit the client when you finish working with it
+    bool IsDelete = Mail.Dispose(); // Be sure to exit the client when you finish working with it
 };
 
 List<Message> Messages = Mail.Messages; // Return List messages from this Email
 
-Message Message = Mail.GetMessage(0); // Return message from Id 0
+Message Message = Mail.GetMessage("Id Message"); // Return message from Id 0
 
-await Mail.Delete(); // Delete this Email
+await Mail.Delete(); // Delete email address
 ```
 
-___
+---
 
 ### Other
 

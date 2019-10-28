@@ -4,7 +4,7 @@
   </PropertyGroup>
   <PropertyGroup>
     <id>Yove.Mail</id>
-    <Version>1.0.8</Version>
+    <Version>1.1.0</Version>
     <Authors>Sunny</Authors>
     <NeutralLanguage>en-US, ru-RU</NeutralLanguage>
     <Description>Email Client for Temp-Mail.org</Description>
@@ -16,7 +16,7 @@
     <RepositoryUrl>https://github.com/TheSuunny/Yove.Mail</RepositoryUrl>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Yove.Http" Version="1.1.6"/>
-    <PackageReference Include="MimeKitLite" Version="2.1.4"/>
+    <PackageReference Include="Yove.Http" Version="1.2.8"/>
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.2"/>
   </ItemGroup>
 </Project>
