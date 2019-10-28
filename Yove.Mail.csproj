@@ -4,7 +4,7 @@
   </PropertyGroup>
   <PropertyGroup>
     <id>Yove.Mail</id>
-    <Version>1.1.1</Version>
+    <Version>1.1.2</Version>
     <Authors>Sunny</Authors>
     <NeutralLanguage>en-US, ru-RU</NeutralLanguage>
     <Description>Email Client for Temp-Mail.org</Description>

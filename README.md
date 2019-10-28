@@ -21,7 +21,7 @@ dotnet add package Yove.Mail
 ### Setup
 
 ```csharp
-Email Mail = new Email
+TempMail Mail = new TempMail
 {
     Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Http),
     Proxy = new ProxyClient("195.208.172.70", 8080, ProxyType.Socks4),

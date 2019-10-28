@@ -12,7 +12,7 @@ namespace Yove.Mail
 {
     public delegate void EmailAction(Message Message);
 
-    public class Email : Settings, IDisposable
+    public class TempMail : Settings, IDisposable
     {
         public event EmailAction NewMessage;
 
@@ -36,7 +36,7 @@ namespace Yove.Mail
             IsDisposed = true;
         }
 
-        public Email()
+        public TempMail()
         {
             string Response = Client.GetString("https://api4.temp-mail.org/request/domains/format/json").GetAwaiter().GetResult();
 
