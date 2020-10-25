@@ -7,40 +7,37 @@ using Yove.Http.Proxy;
 using System.Security.Cryptography;
 using System.Text;
 using Yove.Http;
+using Yove.Mail.Models;
+
+using static Yove.Mail.Settings;
 
 namespace Yove.Mail
 {
     public delegate void EmailAction(Message Message);
 
-    public class TempMail : Settings, IDisposable
+    public class TempMail : IDisposable
     {
         public event EmailAction NewMessage;
 
         public List<string> Domains = new List<string>();
 
-        public List<Message> Messages => SourceMessages;
+        public List<Message> Messages
+        {
+            get
+            {
+                return AllMessages;
+            }
+        }
 
         public string Address { get; set; }
-
         public ProxyClient Proxy { get; set; }
-
         public bool IsDisposed { get; private set; }
-
-        public void Dispose()
-        {
-            Client.Dispose();
-
-            Domains.Clear();
-            Messages.Clear();
-
-            IsDisposed = true;
-        }
 
         public TempMail()
         {
-            string Response = Client.GetString("https://api4.temp-mail.org/request/domains/format/json").GetAwaiter().GetResult();
+            JToken Response = Client.GetJson("https://api4.temp-mail.org/request/domains/format/json").GetAwaiter().GetResult();
 
-            foreach (var Domain in JArray.Parse(Response))
+            foreach (JValue Domain in Response)
                 Domains.Add((string)Domain);
         }
 
@@ -50,10 +47,9 @@ namespace Yove.Mail
                 throw new ArgumentException("Email invalid.");
 
             Address = $"{Login.ToLower()}{Domain}";
-
             Hash = CreateMD5(Address);
 
-            new Task(async () => await WaitMessage()).Start();
+            WaitMessage();
 
             return Address;
         }
@@ -61,56 +57,59 @@ namespace Yove.Mail
         public string SetRandom()
         {
             Address = $"{HttpUtils.RandomString(10).ToLower()}{Domains[new Random().Next(0, Domains.Count - 1)]}";
-
             Hash = CreateMD5(Address);
 
-            new Task(async () => await WaitMessage()).Start();
+            WaitMessage();
 
             return Address;
         }
 
-        private async Task WaitMessage()
+        private async void WaitMessage()
         {
             while (!IsDisposed)
             {
                 try
                 {
-                    string GetMessages = await Client.GetString($"https://api4.temp-mail.org/request/mail/id/{Hash}/format/json");
+                    HttpResponse Response = await Client.Get($"https://api4.temp-mail.org/request/mail/id/{Hash}/format/json");
 
-                    if (!GetMessages.Contains("There are no emails yet"))
+                    if (Response.Body.Contains("There are no emails yet"))
+                        continue;
+
+                    foreach (JObject Message in Response.Json)
                     {
-                        foreach (var Message in JArray.Parse(GetMessages))
+                        if (Messages.FirstOrDefault(x => x.Id == (string)Message["mail_id"]) != null)
+                            continue;
+
+                        Message Msg = new Message
                         {
-                            if (Messages.FirstOrDefault(x => x.Id == (string)Message["mail_id"]) != null)
-                                continue;
+                            Id = (string)Message["mail_id"],
+                            From = (string)Message["mail_from"],
+                            Subject = (string)Message["mail_subject"],
+                            TextBody = (string)Message["mail_text"],
+                            HtmlBody = (string)Message["mail_html"],
+                            Date = new DateTime(1970, 1, 1, 0, 0, 0, 0).AddSeconds((double)Message["mail_timestamp"])
+                        };
 
-                            DateTime Date = new DateTime(1970, 1, 1, 0, 0, 0, 0);
-
-                            Message Msg = new Message
+                        foreach (JObject File in Message["mail_attachments"])
+                        {
+                            Msg.Attachments.Add(new Attachment
                             {
-                                Id = (string)Message["mail_id"],
-                                From = (string)Message["mail_from"],
-                                Subject = (string)Message["mail_subject"],
-                                TextBody = (string)Message["mail_text"],
-                                HtmlBody = (string)Message["mail_html"],
-                                Date = Date.AddSeconds((double)Message["mail_timestamp"])
-                            };
-
-                            foreach (var File in Message["mail_attachments"])
-                            {
-                                Msg.Attachments.Add(((string)Message["filename"], (long)Message["size"], (string)Message["mimetype"], $"https://api4.temp-mail.org/request/one_attachment/id/{Hash}/{(int)File["_id"]}/format/json"));
-                            }
-
-                            if (NewMessage != null && Msg.Date.AddMinutes(2) > DateTime.UtcNow)
-                                NewMessage(Msg);
-
-                            Messages.Add(Msg);
+                                Filename = (string)File["filename"],
+                                Size = (long)File["size"],
+                                MimeType = (string)File["mimetype"],
+                                Url = $"https://api4.temp-mail.org/request/one_attachment/id/{Msg.Id}/{(int)File["_id"]}/format/json"
+                            });
                         }
+
+                        if (NewMessage != null && Msg.Date.AddMinutes(2) > DateTime.UtcNow)
+                            NewMessage(Msg);
+
+                        Messages.Add(Msg);
                     }
                 }
                 catch
                 {
-                    // Ignore
+                    //? Ignore
                 }
                 finally
                 {
@@ -124,12 +123,7 @@ namespace Yove.Mail
             if (IsDisposed)
                 throw new ObjectDisposedException("This object disposed.");
 
-            Message Message = Messages.FirstOrDefault(x => x.Id == Id);
-
-            if (Messages.Count == 0 || Message == null)
-                return null;
-
-            return Message;
+            return Messages.FirstOrDefault(x => x.Id == Id);
         }
 
         public async Task Delete()
@@ -152,6 +146,23 @@ namespace Yove.Mail
 
                 return Builder.ToString().ToLower();
             }
+        }
+
+        public void Dispose()
+        {
+            Client.Dispose();
+
+            Domains.Clear();
+            AllMessages.Clear();
+
+            IsDisposed = true;
+        }
+
+        ~TempMail()
+        {
+            Dispose();
+
+            GC.SuppressFinalize(this);
         }
     }
 }

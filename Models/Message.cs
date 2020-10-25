@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 
-namespace Yove.Mail
+using static Yove.Mail.Settings;
+
+namespace Yove.Mail.Models
 {
-    public class Message : Settings
+    public class Message
     {
         public string Id { get; set; }
         public string From { get; set; }
@@ -15,15 +17,15 @@ namespace Yove.Mail
 
         public DateTime Date { get; set; }
 
-        public List<(string Filename, long Size, string MimeType, string URL)> Attachments = new List<(string Filename, long Size, string MimeType, string URL)>();
+        public List<Attachment> Attachments = new List<Attachment>();
 
         public async Task<bool> Delete()
         {
-            string Delete = await Client.GetString($"https://api4.temp-mail.org/request/delete/id/{Id}/format/json");
+            JToken Json = await Client.GetJson($"https://api4.temp-mail.org/request/delete/id/{Id}/format/json");
 
-            if ((string)JObject.Parse(Delete)["result"] == "success")
+            if ((string)Json["result"] == "success")
             {
-                SourceMessages.Remove(this);
+                AllMessages.Remove(this);
                 return true;
             }
 

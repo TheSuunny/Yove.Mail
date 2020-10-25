@@ -1,20 +1,20 @@
 using System.Collections.Generic;
 using Yove.Http;
+using Yove.Mail.Models;
 
 namespace Yove.Mail
 {
-    public abstract class Settings
+    internal static class Settings
     {
-        internal HttpClient Client = new HttpClient
+        internal static HttpClient Client = new HttpClient
         {
             EnableProtocolError = false,
             UserAgent = HttpUtils.GenerateUserAgent(),
-            EnableCookies = true,
-            Cookies = new System.Collections.Specialized.NameValueCollection()
+            EnableCookies = true
         };
 
-        internal List<Message> SourceMessages = new List<Message>();
+        internal static List<Message> AllMessages = new List<Message>();
 
-        internal string Hash { get; set; }
+        internal static string Hash { get; set; }
     }
 }

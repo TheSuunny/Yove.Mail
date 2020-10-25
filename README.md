@@ -31,12 +31,14 @@ TempMail Mail = new TempMail
 
 string Domain = Mail.Domains[new Random().Next(0, Mail.Domains.Count - 1)];
 
-string Address = await Mail.Set("yove", Domain); // Set email address
-string Address = await Mail.SetRandom(); // Set random email address
+string Address = Mail.Set("yove", Domain); // Set email address
+string Address = Mail.SetRandom(); // Set random email address
 
 Mail.NewMessage += async (e) =>
 {
     Console.WriteLine($"{e.TextBody} / {e.HtmlBody} / {e.From} / {e.Subject} / {e.Date}");
+
+    await e.Attachments[0].Download("/Users/sunny/Documents/"); // Download attachment file to path /Users/sunny/Documents/
 
     bool IsDelete =  await e.Delete(); // Delete this message
 

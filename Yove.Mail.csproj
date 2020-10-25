@@ -16,7 +16,7 @@
     <RepositoryUrl>https://github.com/TheSuunny/Yove.Mail</RepositoryUrl>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Yove.Http" Version="1.2.8"/>
-    <PackageReference Include="Newtonsoft.Json" Version="12.0.2"/>
+    <PackageReference Include="Yove.Http" Version="1.4.1"/>
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3"/>
   </ItemGroup>
 </Project>
